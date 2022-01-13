@@ -2,6 +2,9 @@
 	"name": "SimpleNFTProject",
 	"build": {
 		"dockerfile": "Dockerfile"
-	}
+	},
+	"extensions": [
+		"juanblanco.solidity"
+	]
 	
 }
