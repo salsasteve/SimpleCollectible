@@ -19,23 +19,12 @@ RUN apt-get update && \
   # set up locale
   && locale-gen en_US.UTF-8
 
-ENV USER_NAME salsasteve
-ENV USER_PASSWORD password
-
-# add a user (--disabled-password: the user won't be able to use the account until the password is set)
-RUN adduser --quiet --disabled-password --shell /bin/zsh --home /home/$USER_NAME --gecos "User" $USER_NAME
-# update the password
-RUN echo "${USER_NAME}:${USER_PASSWORD}" | chpasswd && usermod -aG sudo $USER_NAME
-RUN echo $USER_NAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USER_NAME && chmod 0440 /etc/sudoers.d/$USER_NAME
+#PREP vim install plug, and solidity syntax
+#RUN curl -fLo ~/.vim/autoload/plug.vim --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+RUN git clone https://github.com/tomlion/vim-solidity.git ~/.vim/bundle/vim-solidity
 
 # set home
-ENV HOME /home/$USER_NAME
-
-# generate locale for agnoster
-RUN echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && /usr/sbin/locale-gen
-
-# the user we're applying this too (otherwise it most likely install for root)
-USER $USER_NAME
+ENV HOME /home
 
 ENV TERM xterm
 
@@ -43,12 +32,12 @@ ENV TERM xterm
 ENV SHELL /bin/zsh
 
 # installing NVM, Node LTS, NPM
-ENV NVM_DIR /usr/local/nvm
+ENV NVM_DIR $HOME/nvm
 ENV NODE_VERSION 16.13.2
 
 WORKDIR $NVM_DIR
 
-RUN curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash \
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash \
     && . $NVM_DIR/nvm.sh \
     && nvm install $NODE_VERSION \
     && nvm alias default $NODE_VERSION \
@@ -58,8 +47,16 @@ ENV NODE_PATH $NVM_DIR/versions/node/v$NODE_VERSION/lib/node_modules
 ENV PATH      $NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
 
 # confirm installation
+WORKDIR $HOME/app/epic-nfts
+RUN npm init -y
+RUN npm install --save-dev hardhat
+#RUN npm hardhat
+
 RUN node -v
 RUN npm -v
+
+RUN npm install --save-dev @nomiclabs/hardhat-waffle ethereum-waffle chai @nomiclabs/hardhat-ethers ethers
+RUN npm install @openzeppelin/contracts
 
 # run the oh-my-zsh installation script  
 RUN wget https://github.com/robbyrussell/oh-my-zsh/raw/master/tools/install.sh -O - | zsh || true
@@ -70,11 +67,11 @@ RUN git clone https://github.com/romkatv/powerlevel10k.git ~/.oh-my-zsh/custom/t
 RUN cd $HOME && curl -fsSLO https://raw.githubusercontent.com/romkatv/dotfiles-public/master/.purepower
 
 COPY . $HOME
-WORKDIR $HOME/app
-RUN pip3 install -r requirements.txt
+RUN pip3 install -r $HOME/app/requirements.txt
 
 # zsh configuration
 COPY .zshrc $HOME
-COPY .p10k.zsh $home
+COPY .p10k.zsh $HOME
+COPY .vimrc $HOME
 
-ENTRYPOINT [$SHELL , "echo", "BOOYAH"]
+ENTRYPOINT $SHELL

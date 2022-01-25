@@ -2,7 +2,7 @@
 # export PATH=$HOME/bin:/usr/local/bin:$PATH
 
 # Path to your oh-my-zsh installation.
-export ZSH="/home/salsasteve/.oh-my-zsh"
+export ZSH="/home/.oh-my-zsh"
 
 # Set name of the theme to load --- if set to "random", it will
 # load a random theme each time oh-my-zsh is loaded, in which case,
@@ -103,4 +103,7 @@ export POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true
 
 source ~/.purepower
 source $HOME/.p10k.zsh
-source /usr/local/nvm/nvm.sh
+source $NVM_DIR/nvm.sh
+
+curl -fLo ~/.vim/autoload/plug.vim --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+
