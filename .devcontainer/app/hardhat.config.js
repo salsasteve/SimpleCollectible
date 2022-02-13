@@ -13,9 +13,9 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
  module.exports = {
   solidity: '0.8.1',
   networks: {
-    rinkeby: {
-      url: process.env.RPC_RINKEBY,
-      accounts: [process.env.PRIVATE_KEY],
-    },
+    // rinkeby: {
+    //   url: process.env.RPC_RINKEBY,
+    //   accounts: [process.env.PRIVATE_KEY],
+    // },
   },
 };

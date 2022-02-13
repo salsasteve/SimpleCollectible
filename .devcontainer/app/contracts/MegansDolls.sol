@@ -7,8 +7,6 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "hardhat/console.sol";
 
-// We inherit the contract we imported. This means we'll have access
-// to the inherited contract's methods.
 
 contract MegansDolls is ERC721, Ownable {
   using Strings for uint256;
@@ -21,19 +19,19 @@ contract MegansDolls is ERC721, Ownable {
   string public hiddenMetadataUri;
   
   uint256 public cost = 0.01 ether;
-  uint256 public maxSupply = 10000;
+  uint256 public maxSupply = 539;
   uint256 public maxMintAmountPerTx = 5;
 
   bool public paused = true;
   bool public revealed = false;
 
   constructor() ERC721("Megans Dolls", "MGD") {
-    setHiddenMetadataUri("ipfs://__CID__/hidden.json");
+    setHiddenMetadataUri("ipfs://QmVJFBDWGs5Kit54EkJZygo2naHMp1pAXVvdotuaNrLpFg");
   }
 
   modifier mintCompliance(uint256 _mintAmount) {
     require(_mintAmount > 0 && _mintAmount <= maxMintAmountPerTx, "Invalid mint amount!");
-    require(supply.current() + _mintAmount <= maxSupply, "Max supply exceeded!");
+    require(supply.current() + _mintAmount < maxSupply, "Max supply exceeded!");
     _;
   }
 
@@ -59,15 +57,14 @@ contract MegansDolls is ERC721, Ownable {
   {
     uint256 ownerTokenCount = balanceOf(_owner);
     uint256[] memory ownedTokenIds = new uint256[](ownerTokenCount);
-    uint256 currentTokenId = 1;
+    uint256 currentTokenId = 0;
     uint256 ownedTokenIndex = 0;
 
-    while (ownedTokenIndex < ownerTokenCount && currentTokenId <= maxSupply) {
+    while (ownedTokenIndex < ownerTokenCount && currentTokenId < maxSupply) {
       address currentTokenOwner = ownerOf(currentTokenId);
 
       if (currentTokenOwner == _owner) {
         ownedTokenIds[ownedTokenIndex] = currentTokenId;
-
         ownedTokenIndex++;
       }
 
@@ -128,12 +125,6 @@ contract MegansDolls is ERC721, Ownable {
   }
 
   function withdraw() public onlyOwner {
-    // This will pay HashLips 5% of the initial sale.
-    // You can remove this if you want, or keep it in to support HashLips and his channel.
-    // =============================================================================
-    (bool hs, ) = payable(0x943590A42C27D08e3744202c4Ae5eD55c2dE240D).call{value: address(this).balance * 5 / 100}("");
-    require(hs);
-    // =============================================================================
 
     // This will transfer the remaining contract balance to the owner.
     // Do not remove this otherwise you will not be able to withdraw the funds.
