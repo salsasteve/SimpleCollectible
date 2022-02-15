@@ -1,5 +1,5 @@
 const { expect } = require("chai");
-const { ethers } = require("hardhat");
+const { ethers, waffle } = require("hardhat");
 
 describe("Token contract", function () {
 
@@ -9,12 +9,14 @@ describe("Token contract", function () {
   let addr1;
   let addr2;
   let addrs;
+  let provider;
 
   // `beforeEach` will run before each test, re-deploying the contract every
   // time. It receives a callback, which can be async.
   beforeEach(async function () {
     MegansDolls = await ethers.getContractFactory("MegansDolls");
     [owner, addr1, addr2, ...addrs] = await ethers.getSigners();
+    provider = waffle.provider;
 
     megansDolls = await MegansDolls.deploy();
     await megansDolls.deployed();
@@ -51,7 +53,9 @@ describe("Token contract", function () {
     
     it("addr1 should mint 5 after pause set to false", async function () {
       await megansDolls.setPaused(false)
-      await megansDolls.connect(addr1.address).mint(5);
+      const balanceOfETH = await provider.getBalance(addr1.address);
+      console.log(balanceOfETH)
+      await megansDolls.connect(addr1).mint(5);
       
       const finalOwnerBalance = await megansDolls.balanceOf(addr1.address);
       expect(finalOwnerBalance).to.equal(5);
