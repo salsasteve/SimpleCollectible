@@ -20,6 +20,7 @@ describe('MegansDolls', function () {
       expect(await this.megansdolls.collectionSize()).to.be.equal(8888);
       expect(await this.megansdolls.reserves()).to.be.equal(100);
       expect(await this.megansdolls.maxBatchSize()).to.be.equal(5);
+      expect(await this.megansdolls.saleState()).to.be.equal(0);
     });
   });
 

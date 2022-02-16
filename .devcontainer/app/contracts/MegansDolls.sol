@@ -15,7 +15,6 @@ contract MegansDolls is Ownable, ERC721A, ReentrancyGuard {
 	uint256 public immutable collectionSize = 8888;
 	uint256 public immutable reserves = 100;
 	uint256 public immutable maxBatchSize = 5;
-
 	uint256 public saleState = 0;
 
 	bytes32 public merkleRoot;
