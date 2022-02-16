@@ -1,147 +1,129 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity >=0.7.0 <0.9.0;
+pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
+// Contract by METACANNY.eth (@METACANNY)
+
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "hardhat/console.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import "./ERC721A.sol";
 
+contract MegansDolls is Ownable, ERC721A, ReentrancyGuard {
+	string _baseTokenURI;
+	uint256 public price = 0.04 ether;
+	uint256 public immutable collectionSize = 8888;
+	uint256 public immutable reserves = 100;
+	uint256 public immutable maxBatchSize = 5;
 
-contract MegansDolls is ERC721, Ownable {
-  using Strings for uint256;
-  using Counters for Counters.Counter;
+	uint256 public saleState = 0;
 
-  Counters.Counter private supply;
+	bytes32 public merkleRoot;
+	mapping(address => uint256) public addressToMinted;
 
-  string public uriPrefix = "";
-  string public uriSuffix = ".json";
-  string public hiddenMetadataUri;
+	constructor(string memory baseTokenURI) ERC721A("Megans Dolls", "MGD") {
+		_baseTokenURI = baseTokenURI;
+	}
+
+	modifier callerIsUser() {
+		require(tx.origin == msg.sender, "The caller is another contract.");
+		_;
+	}
+
+	function privateSaleMint(
+		uint256 quantity,
+		uint256 allowance,
+		bytes32[] calldata proof
+	) public payable callerIsUser {
+		string memory payload = string(abi.encodePacked(_msgSender()));
+		require(saleState > 0, "Presale must be active to mint.");
+		require(
+			_verify(_leaf(Strings.toString(allowance), payload), proof),
+			"Invalid Merkle Tree proof supplied."
+		);
+		require(addressToMinted[_msgSender()] + quantity <= allowance, "Exceeds whitelist supply.");
+		require(quantity * price == msg.value, "Invalid funds provided.");
+
+		addressToMinted[_msgSender()] += quantity;
+		_safeMint(msg.sender, quantity);
+		refundIfOver(price * quantity);
+	}
+
+	function publicSaleMint(uint256 quantity) external payable callerIsUser {
+		require(saleState > 1, "Sale must be active to mint.");
+		require(totalSupply() + quantity <= collectionSize - reserves, "Exceeds max supply.");
+		require(numberMinted(msg.sender) + quantity <= maxBatchSize, "Cannot mint this many.");
+		require(quantity * price == msg.value, "Invalid funds provided.");
+		_safeMint(msg.sender, quantity);
+		refundIfOver(price * quantity);
+	}
+
+	function ownerMint(uint256 quantity, address reciever) external onlyOwner {
+		require(totalSupply() + quantity <= collectionSize, "Exceeds max supply.");
+		require(quantity <= maxBatchSize, "Cannot mint this many.");
+		_safeMint(reciever, quantity);
+	}
+
+	function refundIfOver(uint256 _price) private {
+		require(msg.value >= _price, "Need to send more ETH.");
+		if (msg.value > _price) {
+			payable(msg.sender).transfer(msg.value - _price);
+		}
+	}
+
+	function setMerkleRoot(bytes32 _merkleRoot) external onlyOwner {
+		merkleRoot = _merkleRoot;
+	}
+
+	function setPrice(uint256 _newPrice) public onlyOwner {
+		price = _newPrice;
+	}
   
-  uint256 public cost = 0.01 ether;
-  uint256 public maxSupply = 539;
-  uint256 public maxMintAmountPerTx = 5;
 
-  bool public paused = true;
-  bool public revealed = false;
+	function setSaleState(uint256 _saleState) public onlyOwner {
+		saleState = _saleState;
+	}
 
-  constructor() ERC721("Megans Dolls", "MGD") {
-    setHiddenMetadataUri("ipfs://QmVJFBDWGs5Kit54EkJZygo2naHMp1pAXVvdotuaNrLpFg");
-  }
+	function _leaf(string memory allowance, string memory payload) internal pure returns (bytes32) {
+		return keccak256(abi.encodePacked(payload, allowance));
+	}
 
-  modifier mintCompliance(uint256 _mintAmount) {
-    require(_mintAmount > 0 && _mintAmount <= maxMintAmountPerTx, "Invalid mint amount!");
-    require(supply.current() + _mintAmount < maxSupply, "Max supply exceeded!");
-    _;
-  }
+	function _verify(bytes32 leaf, bytes32[] memory proof) internal view returns (bool) {
+		return MerkleProof.verify(proof, merkleRoot, leaf);
+	}
 
-  function totalSupply() public view returns (uint256) {
-    return supply.current();
-  }
+	function getAllowance(string memory allowance, bytes32[] calldata proof)
+		public
+		view
+		returns (string memory)
+	{
+		string memory payload = string(abi.encodePacked(_msgSender()));
+		require(_verify(_leaf(allowance, payload), proof), "Invalid Merkle Tree proof supplied.");
+		return allowance;
+	}
 
-  function mint(uint256 _mintAmount) public payable mintCompliance(_mintAmount) {
-    require(!paused, "The contract is paused!");
-    require(msg.value >= cost * _mintAmount, "Insufficient funds!");
+	function _baseURI() internal view virtual override returns (string memory) {
+		return _baseTokenURI;
+	}
 
-    _mintLoop(msg.sender, _mintAmount);
-  }
-  
-  function mintForAddress(uint256 _mintAmount, address _receiver) public mintCompliance(_mintAmount) onlyOwner {
-    _mintLoop(_receiver, _mintAmount);
-  }
+	function setBaseURI(string calldata baseURI) external onlyOwner {
+		_baseTokenURI = baseURI;
+	}
 
-  function walletOfOwner(address _owner)
-    public
-    view
-    returns (uint256[] memory)
-  {
-    uint256 ownerTokenCount = balanceOf(_owner);
-    uint256[] memory ownedTokenIds = new uint256[](ownerTokenCount);
-    uint256 currentTokenId = 0;
-    uint256 ownedTokenIndex = 0;
+	function withdrawMoney() external onlyOwner nonReentrant {
+		(bool success, ) = msg.sender.call{ value: address(this).balance }("");
+		require(success, "Transfer failed.");
+	}
 
-    while (ownedTokenIndex < ownerTokenCount && currentTokenId < maxSupply) {
-      address currentTokenOwner = ownerOf(currentTokenId);
+	function numberMinted(address owner) public view returns (uint256) {
+		return _numberMinted(owner);
+	}
 
-      if (currentTokenOwner == _owner) {
-        ownedTokenIds[ownedTokenIndex] = currentTokenId;
-        ownedTokenIndex++;
-      }
+	function getOwnershipData(uint256 tokenId) external view returns (TokenOwnership memory) {
+		return ownershipOf(tokenId);
+	}
 
-      currentTokenId++;
-    }
-
-    return ownedTokenIds;
-  }
-
-  function tokenURI(uint256 _tokenId)
-    public
-    view
-    virtual
-    override
-    returns (string memory)
-  {
-    require(
-      _exists(_tokenId),
-      "ERC721Metadata: URI query for nonexistent token"
-    );
-
-    if (revealed == false) {
-      return hiddenMetadataUri;
-    }
-
-    string memory currentBaseURI = _baseURI();
-    return bytes(currentBaseURI).length > 0
-        ? string(abi.encodePacked(currentBaseURI, _tokenId.toString(), uriSuffix))
-        : "";
-  }
-
-  function setRevealed(bool _state) public onlyOwner {
-    revealed = _state;
-  }
-
-  function setCost(uint256 _cost) public onlyOwner {
-    cost = _cost;
-  }
-
-  function setMaxMintAmountPerTx(uint256 _maxMintAmountPerTx) public onlyOwner {
-    maxMintAmountPerTx = _maxMintAmountPerTx;
-  }
-
-  function setHiddenMetadataUri(string memory _hiddenMetadataUri) public onlyOwner {
-    hiddenMetadataUri = _hiddenMetadataUri;
-  }
-
-  function setUriPrefix(string memory _uriPrefix) public onlyOwner {
-    uriPrefix = _uriPrefix;
-  }
-
-  function setUriSuffix(string memory _uriSuffix) public onlyOwner {
-    uriSuffix = _uriSuffix;
-  }
-
-  function setPaused(bool _state) public onlyOwner {
-    paused = _state;
-  }
-
-  function withdraw() public onlyOwner {
-
-    // This will transfer the remaining contract balance to the owner.
-    // Do not remove this otherwise you will not be able to withdraw the funds.
-    // =============================================================================
-    (bool os, ) = payable(owner()).call{value: address(this).balance}("");
-    require(os);
-    // =============================================================================
-  }
-
-  function _mintLoop(address _receiver, uint256 _mintAmount) internal {
-    for (uint256 i = 0; i < _mintAmount; i++) {
-      supply.increment();
-      _safeMint(_receiver, supply.current());
-    }
-  }
-
-  function _baseURI() internal view virtual override returns (string memory) {
-    return uriPrefix;
+  function exists(uint256 tokenId) public view returns (bool) {
+    return _exists(tokenId);
   }
 }
