@@ -34,10 +34,10 @@ contract MegansDolls is Ownable, ERC721A, ReentrancyGuard {
 		uint256 allowance,
 		bytes32[] calldata proof
 	) public payable callerIsUser {
-		string memory payload = string(abi.encodePacked(_msgSender()));
 		require(saleState > 0, "Presale must be active to mint.");
+    require(totalSupply() + quantity <= collectionSize - reserves, "Exceeds max supply.");
 		require(
-			_verify(_leaf(Strings.toString(allowance), payload), proof),
+			_verify(_leaf(_msgSender(), allowance), proof),
 			"Invalid Merkle Tree proof supplied."
 		);
 		require(addressToMinted[_msgSender()] + quantity <= allowance, "Exceeds whitelist supply.");
@@ -83,7 +83,8 @@ contract MegansDolls is Ownable, ERC721A, ReentrancyGuard {
 		saleState = _saleState;
 	}
 
-	function _leaf(string memory allowance, string memory payload) internal pure returns (bytes32) {
+	function _leaf(address payload, uint256 allowance) internal pure returns (bytes32) {
+    // https://blog.8bitzen.com/posts/18-03-2019-keccak-abi-encodepacked-with-javascript/
 		return keccak256(abi.encodePacked(payload, allowance));
 	}
 
@@ -91,13 +92,12 @@ contract MegansDolls is Ownable, ERC721A, ReentrancyGuard {
 		return MerkleProof.verify(proof, merkleRoot, leaf);
 	}
 
-	function getAllowance(string memory allowance, bytes32[] calldata proof)
+	function getAllowance(uint256 allowance, bytes32[] calldata proof)
 		public
 		view
-		returns (string memory)
+		returns (uint256)
 	{
-		string memory payload = string(abi.encodePacked(_msgSender()));
-		require(_verify(_leaf(allowance, payload), proof), "Invalid Merkle Tree proof supplied.");
+		require(_verify(_leaf(_msgSender(), allowance), proof), "Invalid Merkle Tree proof supplied.");
 		return allowance;
 	}
 
